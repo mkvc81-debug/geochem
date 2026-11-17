@@ -1,0 +1,1869 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#090d16">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Universal 3D Molecular &amp; PubChem Atlas</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js and OrbitControls via CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        slate: {
+                            850: '#151e2e',
+                            950: '#090d16',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #090d16;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+        /* Custom subtle scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+        /* 3D Label styling */
+        .atom-label {
+            position: absolute;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 1px 5px;
+            border-radius: 4px;
+            background: rgba(9, 13, 22, 0.82);
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            color: #f8fafc;
+            white-space: nowrap;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+            transition: opacity 0.15s ease;
+        }
+        .group-title-label {
+            position: absolute;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(56, 189, 248, 0.45);
+            color: #38bdf8;
+            letter-spacing: 0.03em;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        #canvas-container {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-950 text-slate-200 selection:bg-sky-500 selection:text-white">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-slate-800/80 bg-slate-900/95 backdrop-blur-md sticky top-0 z-30">
+        <div class="max-w-[1800px] mx-auto px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-sky-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-sky-500/20 shrink-0">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"></path>
+                    </svg>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-base sm:text-lg font-bold tracking-tight text-white leading-tight">Universal 3D Molecular Atlas</h1>
+                        <span class="hidden sm:inline-block px-2 py-0.5 text-[10px] font-mono font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-full">110M+ PUBCHEM 3D</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Live Global 3D Chemical Database, VSEPR Polyhedra &amp; Crystallography App</p>
+                </div>
+            </div>
+
+            <!-- Global Mode Switch & File Import -->
+            <div class="flex flex-wrap items-center gap-2">
+                <label class="cursor-pointer px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5" title="Load .SDF, .MOL, or .XYZ 3D structure file">
+                    <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                    <span class="hidden sm:inline">Import .SDF/.XYZ</span>
+                    <input id="file-import-input" type="file" accept=".sdf,.mol,.xyz,.txt" class="hidden">
+                </label>
+
+                <div class="inline-flex rounded-xl bg-slate-950 p-1 border border-slate-800">
+                    <button id="view-single-btn" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-sky-600 text-white shadow-sm">
+                        Single Explorer
+                    </button>
+                    <button id="view-compare-btn" class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-amber-400 hover:text-amber-300 hover:bg-slate-800/70 flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 002-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"></path></svg>
+                        3-Way Compare
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main 3-Column Workspace -->
+    <main class="flex-1 flex flex-col lg:flex-row max-w-[1800px] w-full mx-auto">
+        
+        <!-- Left Sidebar: Live PubChem 3D Database + Curated Atlas -->
+        <aside class="w-full lg:w-[310px] xl:w-[340px] border-b lg:border-b-0 lg:border-r border-slate-800 bg-slate-900/75 flex flex-col lg:max-h-[calc(100vh-61px)] shrink-0">
+            
+            <!-- Live PubChem 3D Global Dataset Search -->
+            <div class="p-3 border-b border-slate-800 bg-gradient-to-b from-sky-950/40 to-slate-900/90 space-y-2">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        Live PubChem 3D Dataset
+                    </span>
+                    <span class="text-[10px] font-mono text-slate-400">110M+ Compounds</span>
+                </div>
+                <form id="pubchem-search-form" class="flex gap-1.5">
+                    <input id="pubchem-query" type="text" placeholder="Any molecule (e.g. Caffeine, ATP, TNT)..." class="flex-1 min-w-0 bg-slate-950 border border-slate-700 focus:border-sky-400 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 outline-none">
+                    <button type="submit" id="pubchem-fetch-btn" class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold transition shrink-0 shadow">
+                        Fetch 3D
+                    </button>
+                </form>
+                <!-- Quick-Fetch Famous Dataset Chips -->
+                <div class="flex flex-wrap gap-1 pt-0.5">
+                    <button type="button" data-fetch="Caffeine" class="quick-fetch px-2 py-0.5 rounded bg-slate-950/90 hover:bg-sky-500/20 border border-slate-800 hover:border-sky-500/40 text-[10px] text-slate-300 transition">Caffeine</button>
+                    <button type="button" data-fetch="Aspirin" class="quick-fetch px-2 py-0.5 rounded bg-slate-950/90 hover:bg-sky-500/20 border border-slate-800 hover:border-sky-500/40 text-[10px] text-slate-300 transition">Aspirin</button>
+                    <button type="button" data-fetch="Glucose" class="quick-fetch px-2 py-0.5 rounded bg-slate-950/90 hover:bg-sky-500/20 border border-slate-800 hover:border-sky-500/40 text-[10px] text-slate-300 transition">Glucose</button>
+                    <button type="button" data-fetch="Adenosine triphosphate" class="quick-fetch px-2 py-0.5 rounded bg-slate-950/90 hover:bg-sky-500/20 border border-slate-800 hover:border-sky-500/40 text-[10px] text-slate-300 transition">ATP</button>
+                    <button type="button" data-fetch="Capsaicin" class="quick-fetch px-2 py-0.5 rounded bg-slate-950/90 hover:bg-sky-500/20 border border-slate-800 hover:border-sky-500/40 text-[10px] text-slate-300 transition">Capsaicin</button>
+                    <button type="button" data-fetch="Nitroglycerin" class="quick-fetch px-2 py-0.5 rounded bg-slate-950/90 hover:bg-sky-500/20 border border-slate-800 hover:border-sky-500/40 text-[10px] text-slate-300 transition">Nitroglycerin</button>
+                    <button type="button" data-fetch="Penicillin G" class="quick-fetch px-2 py-0.5 rounded bg-slate-950/90 hover:bg-sky-500/20 border border-slate-800 hover:border-sky-500/40 text-[10px] text-slate-300 transition">Penicillin</button>
+                    <button type="button" data-fetch="Cholesterol" class="quick-fetch px-2 py-0.5 rounded bg-slate-950/90 hover:bg-sky-500/20 border border-slate-800 hover:border-sky-500/40 text-[10px] text-slate-300 transition">Cholesterol</button>
+                </div>
+                <div id="pubchem-status" class="hidden text-[11px] px-2.5 py-1.5 rounded-lg border"></div>
+            </div>
+
+            <!-- Local Atlas Filter & Search -->
+            <div class="p-3 border-b border-slate-800/80 space-y-2 bg-slate-900/90">
+                <div class="relative">
+                    <input id="mol-search" type="text" placeholder="Filter loaded library..." class="w-full bg-slate-950 border border-slate-800 focus:border-sky-500 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 outline-none transition">
+                    <svg class="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </div>
+                <!-- Category Pills -->
+                <div id="category-filters" class="flex flex-wrap gap-1">
+                    <button data-cat="all" class="cat-pill px-2 py-1 rounded-md text-[11px] font-medium bg-sky-600 text-white">All</button>
+                    <button data-cat="fetched" class="cat-pill px-2 py-1 rounded-md text-[11px] font-medium bg-slate-950 text-emerald-400 hover:text-white border border-slate-800">Fetched 3D</button>
+                    <button data-cat="propellant" class="cat-pill px-2 py-1 rounded-md text-[11px] font-medium bg-slate-950 text-slate-400 hover:text-white border border-slate-800">Propellants</button>
+                    <button data-cat="vsepr" class="cat-pill px-2 py-1 rounded-md text-[11px] font-medium bg-slate-950 text-slate-400 hover:text-white border border-slate-800">VSEPR</button>
+                    <button data-cat="rings" class="cat-pill px-2 py-1 rounded-md text-[11px] font-medium bg-slate-950 text-slate-400 hover:text-white border border-slate-800">Rings/Cages</button>
+                    <button data-cat="crystals" class="cat-pill px-2 py-1 rounded-md text-[11px] font-medium bg-slate-950 text-slate-400 hover:text-white border border-slate-800">Crystals</button>
+                </div>
+            </div>
+
+            <!-- Scrollable Molecule List -->
+            <div id="molecule-list" class="flex-1 overflow-y-auto p-2.5 space-y-1.5 max-h-[240px] lg:max-h-none">
+                <!-- Populated dynamically via JS -->
+            </div>
+        </aside>
+
+        <!-- Center 3D Viewport Area -->
+        <div class="relative flex-1 min-h-[450px] lg:min-h-[calc(100vh-61px)] flex flex-col bg-slate-950 overflow-hidden">
+            
+            <!-- Compare Mode Selector Bar (Visible only in Compare Studio) -->
+            <div id="compare-selector-bar" class="hidden z-20 bg-slate-900/95 border-b border-amber-500/30 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2 text-xs font-semibold text-amber-400">
+                    <span>Compare Slots:</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 flex-1 justify-end">
+                    <select id="compare-slot-0" class="compare-select bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:border-amber-400 outline-none"></select>
+                    <span class="text-slate-600 text-xs font-bold">VS</span>
+                    <select id="compare-slot-1" class="compare-select bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:border-amber-400 outline-none"></select>
+                    <span class="text-slate-600 text-xs font-bold">VS</span>
+                    <select id="compare-slot-2" class="compare-select bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:border-amber-400 outline-none"></select>
+                </div>
+            </div>
+
+            <!-- 3D Canvas Wrapper -->
+            <div id="canvas-container" class="relative flex-1 w-full h-full cursor-grab active:cursor-grabbing">
+                <!-- HTML Overlay Container for 3D Atom Labels -->
+                <div id="labels-layer" class="absolute inset-0 pointer-events-none overflow-hidden"></div>
+            </div>
+
+            <!-- Top-Left Dynamic Element Legend Pill -->
+            <div class="absolute top-4 left-4 z-20 flex flex-col gap-2 pointer-events-none max-w-[65%]">
+                <div class="bg-slate-900/85 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-2 shadow-xl pointer-events-auto">
+                    <div class="text-[10px] uppercase tracking-wider font-semibold text-slate-400 mb-1">Active CPK Elements</div>
+                    <div id="dynamic-legend" class="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                        <!-- Dynamically updated for visible elements -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top-Right Quick Camera Controls -->
+            <div class="absolute top-4 right-4 z-20 flex items-center gap-2">
+                <button id="btn-autorotate" class="px-3 py-2 rounded-xl text-xs font-medium bg-sky-500/20 text-sky-300 border border-sky-500/40 hover:bg-sky-500/30 backdrop-blur-md transition flex items-center gap-1.5 shadow-lg">
+                    <span class="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
+                    Auto-Rotate: ON
+                </button>
+                <button id="btn-reset-cam" class="px-3 py-2 rounded-xl text-xs font-medium bg-slate-900/85 text-slate-200 border border-slate-700 hover:bg-slate-800 backdrop-blur-md transition shadow-lg">
+                    Reset View
+                </button>
+            </div>
+
+            <!-- Bottom Floating Control Bar -->
+            <div class="z-20 p-3 bg-slate-900/90 backdrop-blur-md border-t border-slate-800/80">
+                <div class="flex flex-wrap items-center justify-between gap-2.5">
+                    
+                    <!-- Rendering Style Switch (Ball-and-Stick vs Space-Filling) -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-medium text-slate-400 hidden sm:inline">Model:</span>
+                        <div class="inline-flex rounded-lg bg-slate-950 p-1 border border-slate-800">
+                            <button id="style-ballstick" class="px-2.5 py-1 rounded-md text-xs font-medium bg-slate-800 text-white transition">
+                                Ball &amp; Stick
+                            </button>
+                            <button id="style-spacefill" class="px-2.5 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition">
+                                Space-Filling (vdW)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Overlays & Toggles -->
+                    <div class="flex flex-wrap items-center gap-1.5">
+                        <button id="toggle-wireframe" class="toggle-pill px-2.5 py-1.5 rounded-lg text-xs font-medium border transition flex items-center gap-1.5 bg-emerald-500/15 border-emerald-500/40 text-emerald-300">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path></svg>
+                            Polyhedron / Wireframe
+                        </button>
+
+                        <button id="toggle-labels" class="toggle-pill px-2.5 py-1.5 rounded-lg text-xs font-medium border transition flex items-center gap-1.5 bg-indigo-500/15 border-indigo-500/40 text-indigo-300">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+                            Atom Labels
+                        </button>
+
+                        <button id="toggle-lonepairs" class="toggle-pill px-2.5 py-1.5 rounded-lg text-xs font-medium border transition flex items-center gap-1.5 bg-amber-500/15 border-amber-500/40 text-amber-300">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                            Lone Pairs
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Informative Scientific Side Panel -->
+        <aside class="w-full lg:w-[380px] xl:w-[420px] border-t lg:border-t-0 lg:border-l border-slate-800 bg-slate-900/60 p-5 overflow-y-auto lg:max-h-[calc(100vh-61px)] flex flex-col gap-4 shrink-0">
+            
+            <!-- Header Badge & Title -->
+            <div>
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <span id="info-role-badge" class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-sky-500/15 text-sky-400 border border-sky-500/30">
+                        Category
+                    </span>
+                    <span id="info-formula" class="font-mono text-sm font-bold text-slate-300 bg-slate-800 px-2.5 py-0.5 rounded-md border border-slate-700">
+                        Formula
+                    </span>
+                </div>
+                <h2 id="info-title" class="text-xl font-bold text-white tracking-tight">Molecule Title</h2>
+                <p id="info-subtitle" class="text-xs text-slate-400 mt-1">Subtitle</p>
+            </div>
+
+            <!-- Key Geometric & Crystallographic Metrics Grid -->
+            <div class="grid grid-cols-2 gap-2.5">
+                <div class="bg-slate-950/80 border border-slate-800/90 rounded-xl p-3">
+                    <div class="text-[10px] text-slate-400 uppercase tracking-wider font-medium">VSEPR / Point Group</div>
+                    <div id="info-geometry" class="text-xs sm:text-sm font-semibold text-white mt-0.5">—</div>
+                </div>
+                <div class="bg-slate-950/80 border border-slate-800/90 rounded-xl p-3">
+                    <div class="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Bond Angles</div>
+                    <div id="info-angles" class="text-xs sm:text-sm font-mono font-semibold text-emerald-400 mt-0.5">—</div>
+                </div>
+                <div class="bg-slate-950/80 border border-slate-800/90 rounded-xl p-3">
+                    <div class="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Hybridization</div>
+                    <div id="info-hybrid" class="text-xs sm:text-sm font-semibold text-slate-200 mt-0.5">—</div>
+                </div>
+                <div class="bg-slate-950/80 border border-slate-800/90 rounded-xl p-3">
+                    <div class="text-[10px] text-slate-400 uppercase tracking-wider font-medium">Dipole / Symmetry</div>
+                    <div id="info-lattice" class="text-xs sm:text-sm font-semibold text-slate-200 mt-0.5">—</div>
+                </div>
+            </div>
+
+            <!-- Geometric Structural Analysis -->
+            <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-2">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5"></path></svg>
+                    3D Geometric Architecture
+                </h3>
+                <p id="info-geometry-desc" class="text-xs sm:text-sm text-slate-300 leading-relaxed"></p>
+            </div>
+
+            <!-- Chemical Significance & Behavior -->
+            <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-4 space-y-2">
+                <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    Chemical &amp; Physical Significance
+                </h3>
+                <p id="info-combustion-desc" class="text-xs sm:text-sm text-slate-300 leading-relaxed"></p>
+            </div>
+
+        </aside>
+    </main>
+
+    <script>
+        /**
+         * CPK Color & Radii Palette for Elements (Full Periodic Table Support)
+         */
+        const ELEMENTS = {
+            H:  { symbol: 'H',  name: 'Hydrogen',   color: 0xf8fafc, bs: 0.26, vdw: 0.68, css: '#f8fafc' },
+            He: { symbol: 'He', name: 'Helium',     color: 0xd9ffff, bs: 0.30, vdw: 0.75, css: '#d9ffff' },
+            Li: { symbol: 'Li', name: 'Lithium',    color: 0xcc80ff, bs: 0.48, vdw: 1.15, css: '#cc80ff' },
+            Be: { symbol: 'Be', name: 'Beryllium',  color: 0xc2ff00, bs: 0.42, vdw: 0.98, css: '#c2ff00' },
+            B:  { symbol: 'B',  name: 'Boron',      color: 0xf43f5e, bs: 0.40, vdw: 0.92, css: '#f43f5e' },
+            C:  { symbol: 'C',  name: 'Carbon',     color: 0x475569, bs: 0.38, vdw: 0.90, css: '#475569' },
+            N:  { symbol: 'N',  name: 'Nitrogen',   color: 0x3b82f6, bs: 0.42, vdw: 0.95, css: '#3b82f6' },
+            O:  { symbol: 'O',  name: 'Oxygen',     color: 0xef4444, bs: 0.40, vdw: 0.92, css: '#ef4444' },
+            F:  { symbol: 'F',  name: 'Fluorine',   color: 0x22c55e, bs: 0.36, vdw: 0.85, css: '#22c55e' },
+            Ne: { symbol: 'Ne', name: 'Neon',       color: 0xb3e3f5, bs: 0.38, vdw: 0.88, css: '#b3e3f5' },
+            Na: { symbol: 'Na', name: 'Sodium',     color: 0x8b5cf6, bs: 0.50, vdw: 1.20, css: '#8b5cf6' },
+            Mg: { symbol: 'Mg', name: 'Magnesium',  color: 0x8aff00, bs: 0.48, vdw: 1.12, css: '#8aff00' },
+            Al: { symbol: 'Al', name: 'Aluminum',   color: 0xbfa6a6, bs: 0.48, vdw: 1.12, css: '#bfa6a6' },
+            Si: { symbol: 'Si', name: 'Silicon',    color: 0xf0c8a0, bs: 0.46, vdw: 1.10, css: '#f0c8a0' },
+            P:  { symbol: 'P',  name: 'Phosphorus', color: 0xf97316, bs: 0.46, vdw: 1.10, css: '#f97316' },
+            S:  { symbol: 'S',  name: 'Sulfur',     color: 0xeab308, bs: 0.48, vdw: 1.15, css: '#eab308' },
+            Cl: { symbol: 'Cl', name: 'Chlorine',   color: 0x10b981, bs: 0.44, vdw: 1.08, css: '#10b981' },
+            K:  { symbol: 'K',  name: 'Potassium',  color: 0xa855f7, bs: 0.56, vdw: 1.38, css: '#a855f7' },
+            Ca: { symbol: 'Ca', name: 'Calcium',    color: 0x3dff00, bs: 0.54, vdw: 1.30, css: '#3dff00' },
+            Fe: { symbol: 'Fe', name: 'Iron',       color: 0xe06633, bs: 0.50, vdw: 1.20, css: '#e06633' },
+            Cu: { symbol: 'Cu', name: 'Copper',     color: 0xc88033, bs: 0.48, vdw: 1.16, css: '#c88033' },
+            Zn: { symbol: 'Zn', name: 'Zinc',       color: 0x7d80b0, bs: 0.48, vdw: 1.16, css: '#7d80b0' },
+            Br: { symbol: 'Br', name: 'Bromine',    color: 0xa62929, bs: 0.48, vdw: 1.15, css: '#a62929' },
+            I:  { symbol: 'I',  name: 'Iodine',     color: 0x940094, bs: 0.52, vdw: 1.25, css: '#940094' },
+            Xe: { symbol: 'Xe', name: 'Xenon',      color: 0x06b6d4, bs: 0.56, vdw: 1.35, css: '#06b6d4' },
+            Au: { symbol: 'Au', name: 'Gold',       color: 0xffd123, bs: 0.52, vdw: 1.25, css: '#ffd123' },
+            DEFAULT: { symbol: '?', name: 'Element', color: 0xec4899, bs: 0.44, vdw: 1.05, css: '#ec4899' }
+        };
+
+        function getElementProps(sym) {
+            const clean = sym.replace(/[^A-Za-z]/g, '');
+            const formatted = clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+            if (ELEMENTS[formatted]) return ELEMENTS[formatted];
+            return { ...ELEMENTS.DEFAULT, symbol: formatted || sym, name: formatted || sym };
+        }
+
+        /**
+         * Comprehensive Catalog of Molecular & Crystallographic Structures
+         */
+        const MOLECULES = {
+            // --- CATEGORY 1: PROPELLANTS & ENERGETICS ---
+            kno3: {
+                id: 'kno3',
+                category: 'propellant',
+                name: 'Potassium Nitrate',
+                formula: 'KNO₃',
+                shortShape: 'Trigonal Planar in Hexagonal K⁺',
+                roleBadge: 'Oxidizer (~75% Black Powder)',
+                badgeClass: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
+                subtitle: 'Trigonal Planar Nitrate Anion in Hexagonal K⁺ Coordination Shell',
+                geometry: 'Trigonal Planar (D₃h)',
+                angles: '120.0° (O–N–O)',
+                hybrid: 'sp² Resonance + Ionic',
+                lattice: 'Nonpolar Anion / Ionic Lattice',
+                elements: ['N', 'O', 'K'],
+                hasLonePairs: false,
+                geometryDesc: 'The nitrate anion (NO₃⁻) features a central nitrogen atom bonded to three oxygen atoms in a completely flat equilateral triangle (120° angles) stabilized by delocalized π-resonance. Six potassium cations (K⁺) surround the anion in a pseudo-hexagonal coordination shell via electrostatic attraction.',
+                combustionDesc: 'Serves as the primary solid oxygen carrier in traditional black powder. Above 128°C the orthorhombic crystal shifts to a trigonal phase, and upon melting at 334°C the NO₃⁻ triangles decompose to flood adjacent charcoal pores with O₂ gas.'
+            },
+            s8: {
+                id: 's8',
+                category: 'propellant',
+                name: 'Octasulfur Crown',
+                formula: 'S₈',
+                shortShape: 'Puckered 8-Membered Crown',
+                roleBadge: 'Ignition Sensitizer (~10%)',
+                badgeClass: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+                subtitle: 'Cyclooctasulfur Puckered Crown Ring (D₄d Symmetry)',
+                geometry: 'Puckered Crown (D₄d)',
+                angles: '107.9° (S–S–S)',
+                hybrid: 'sp³-like (2 Lone Pairs/S)',
+                lattice: 'Nonpolar (0 D)',
+                elements: ['S'],
+                hasLonePairs: true,
+                geometryDesc: 'Eight sulfur atoms link into a closed ring. Because each sulfur atom holds two bulky lone pairs of electrons, electron repulsion forces the ring out of planarity into a 3D crown—with 4 atoms in an upper square plane and 4 in a lower square plane.',
+                combustionDesc: 'Weak van der Waals forces between S₈ crowns give sulfur a low melting point (115.2°C). During ignition, the crowns open into reactive chains that ignite charcoal early, dropping black powder’s ignition temperature below 200°C.'
+            },
+            carbon: {
+                id: 'carbon',
+                category: 'propellant',
+                name: 'Charcoal Honeycomb',
+                formula: 'C (sp²)',
+                shortShape: 'Fused Planar Hexagons',
+                roleBadge: 'Fuel Matrix (~15%)',
+                badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+                subtitle: '7-Ring Coronene-Like Graphene Domain (D₆h)',
+                geometry: 'Planar Hexagonal Lattice',
+                angles: '120.0° (C–C–C)',
+                hybrid: 'sp² Trigonal Network',
+                lattice: 'Delocalized π-System',
+                elements: ['C'],
+                hasLonePairs: false,
+                geometryDesc: 'Charcoal consists of disordered, warped fragments of fused six-membered carbon rings—the same honeycomb lattice found in graphene. Each interior carbon forms three sigma bonds at 120° within the flat plane while delocalized π-electrons circulate across the rings.',
+                combustionDesc: 'Wood pyrolysis leaves a microscopic carbon sponge riddled with pores. Dissolved KNO₃ penetrates deep into these hexagonal channels during milling, enabling rapid oxidation into CO₂ gas.'
+            },
+            rdx: {
+                id: 'rdx',
+                category: 'propellant',
+                name: 'RDX Hexagonal Ring',
+                formula: 'C₃H₆N₆O₆',
+                shortShape: 'Chair Hexagonal Nitramine',
+                roleBadge: 'High-Energy Nitramine',
+                badgeClass: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
+                subtitle: '1,3,5-Trinitro-1,3,5-triazinane (Chair Conformation)',
+                geometry: 'Puckered C₃N₃ Ring + NO₂',
+                angles: '~109.5° Ring / 125° NO₂',
+                hybrid: 'sp³ Ring + sp² Nitro',
+                lattice: 'Polar (C₃v Chair)',
+                elements: ['C', 'N', 'O', 'H'],
+                hasLonePairs: false,
+                geometryDesc: 'Built around an alternating six-membered hexagonal ring of three carbon and three nitrogen atoms in a chair conformation. Three energetic nitro (–NO₂) groups attach to the ring nitrogens, packing dense oxidizer and fuel groups into a single molecule.',
+                combustionDesc: 'Unlike black powder (a physical mixture), RDX combines fuel (C, H) and oxidizer (NO₂) inside one strained hexagonal molecule—yielding high detonation velocity and clean gas generation with virtually zero solid residue.'
+            },
+
+            // --- CATEGORY 2: CLASSIC VSEPR GEOMETRIES ---
+            co2: {
+                id: 'co2',
+                category: 'vsepr',
+                name: 'Carbon Dioxide',
+                formula: 'CO₂',
+                shortShape: 'Linear (AX₂)',
+                roleBadge: 'VSEPR AX₂ • 2 Electron Domains',
+                badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+                subtitle: 'Linear Triatomic Molecule (D∞h Symmetry)',
+                geometry: 'Linear (AX₂)',
+                angles: '180.0° (O=C=O)',
+                hybrid: 'sp (2 σ + 2 π bonds)',
+                lattice: 'Nonpolar (0 D)',
+                elements: ['C', 'O'],
+                hasLonePairs: true,
+                geometryDesc: 'With two double-bonded oxygen domains and zero lone pairs on the central carbon, electron repulsion maximizes separation at exactly 180°. Two orthogonal π-bonds hold the three nuclei in a rigid straight line.',
+                combustionDesc: 'The primary carbon-bearing combustion gas produced when black powder or smokeless propellants oxidize. Its linear symmetry cancels out individual C=O bond dipoles, making CO₂ a nonpolar gas.'
+            },
+            h2o: {
+                id: 'h2o',
+                category: 'vsepr',
+                name: 'Water Molecule',
+                formula: 'H₂O',
+                shortShape: 'Bent / V-Shaped (AX₂E₂)',
+                roleBadge: 'VSEPR AX₂E₂ • 4 Electron Domains',
+                badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+                subtitle: 'Tetrahedral Electron Geometry with Two Lone Pairs (C₂v)',
+                geometry: 'Bent / Angular (AX₂E₂)',
+                angles: '104.5° (H–O–H)',
+                hybrid: 'sp³ (2 Bonds + 2 Lone Pairs)',
+                lattice: 'Strongly Polar (1.85 D)',
+                elements: ['O', 'H'],
+                hasLonePairs: true,
+                geometryDesc: 'Four electron pairs around oxygen adopt a tetrahedral arrangement, but the two bulky lone pairs occupy more angular volume than bonding pairs—compressing the H–O–H angle from 109.5° down to 104.5°.',
+                combustionDesc: 'Because the molecule is bent rather than linear, the two O–H bond dipoles add together rather than canceling—creating strong polarity and hydrogen bonding.'
+            },
+            bf3: {
+                id: 'bf3',
+                category: 'vsepr',
+                name: 'Boron Trifluoride',
+                formula: 'BF₃',
+                shortShape: 'Trigonal Planar (AX₃)',
+                roleBadge: 'VSEPR AX₃ • 3 Electron Domains',
+                badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+                subtitle: 'Flat Equilateral Triangle (D₃h Symmetry)',
+                geometry: 'Trigonal Planar (AX₃)',
+                angles: '120.0° (F–B–F)',
+                hybrid: 'sp² (Electron-Deficient)',
+                lattice: 'Nonpolar (0 D)',
+                elements: ['B', 'F'],
+                hasLonePairs: false,
+                geometryDesc: 'Three fluorine atoms arrange symmetrically around a central boron atom in a single flat plane at 120° angles. With an empty unhybridized p-orbital perpendicular to the plane, boron acts as a classic Lewis acid.',
+                combustionDesc: 'A textbook example of perfect D₃h trigonal planar symmetry where three strongly polar B–F bonds cancel completely by vector addition.'
+            },
+            nh3: {
+                id: 'nh3',
+                category: 'vsepr',
+                name: 'Ammonia',
+                formula: 'NH₃',
+                shortShape: 'Trigonal Pyramidal (AX₃E)',
+                roleBadge: 'VSEPR AX₃E • 4 Electron Domains',
+                badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+                subtitle: 'Trigonal Pyramid with Apical Lone Pair (C₃v)',
+                geometry: 'Trigonal Pyramidal (AX₃E)',
+                angles: '107.0° (H–N–H)',
+                hybrid: 'sp³ (3 Bonds + 1 Lone Pair)',
+                lattice: 'Polar (1.47 D)',
+                elements: ['N', 'H'],
+                hasLonePairs: true,
+                geometryDesc: 'Nitrogen sits at the apex of a shallow triangular pyramid above three hydrogen atoms. The single axial lone pair pushes the three N–H bonds downward, compressing the H–N–H angles from 109.5° to 107.0°.',
+                combustionDesc: 'Rapidly undergoes umbrella inversion at room temperature as the nitrogen atom tunnels through the plane of the three hydrogen atoms.'
+            },
+            ch4: {
+                id: 'ch4',
+                category: 'vsepr',
+                name: 'Methane',
+                formula: 'CH₄',
+                shortShape: 'Tetrahedral (AX₄)',
+                roleBadge: 'VSEPR AX₄ • 4 Electron Domains',
+                badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+                subtitle: 'Regular Tetrahedron (Td Symmetry)',
+                geometry: 'Tetrahedral (AX₄)',
+                angles: '109.47° (H–C–H)',
+                hybrid: 'sp³ (4 Equivalent σ Bonds)',
+                lattice: 'Nonpolar (0 D)',
+                elements: ['C', 'H'],
+                hasLonePairs: false,
+                geometryDesc: 'The foundational 3D geometry of organic chemistry. Four hydrogen atoms occupy the vertices of a regular tetrahedron around carbon, maximizing 3D separation at the iconic tetrahedral angle of arccos(-1/3) ≈ 109.47°.',
+                combustionDesc: 'Complete tetrahedral symmetry gives methane zero net dipole moment and high C–H bond strength.'
+            },
+            pcl5: {
+                id: 'pcl5',
+                category: 'vsepr',
+                name: 'Phosphorus Pentachloride',
+                formula: 'PCl₅',
+                shortShape: 'Trigonal Bipyramidal (AX₅)',
+                roleBadge: 'VSEPR AX₅ • 5 Electron Domains',
+                badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+                subtitle: 'Two Distinct Bond Environments: Axial & Equatorial (D₃h)',
+                geometry: 'Trigonal Bipyramidal (AX₅)',
+                angles: '120° Eq / 90° Ax–Eq',
+                hybrid: 'sp³d Hypervalent',
+                lattice: 'Nonpolar (0 D)',
+                elements: ['P', 'Cl'],
+                hasLonePairs: false,
+                geometryDesc: 'Unlike tetrahedra or octahedra, trigonal bipyramidal geometry has two non-equivalent positions: three equatorial chlorines forming a flat 120° triangle, and two axial chlorines perpendicular (90°) above and below the plane.',
+                combustionDesc: 'Because axial bonds experience three 90° repulsions while equatorial bonds experience only two, axial P–Cl bonds are slightly longer and weaker than equatorial ones.'
+            },
+            sf6: {
+                id: 'sf6',
+                category: 'vsepr',
+                name: 'Sulfur Hexafluoride',
+                formula: 'SF₆',
+                shortShape: 'Octahedral (AX₆)',
+                roleBadge: 'VSEPR AX₆ • 6 Electron Domains',
+                badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+                subtitle: 'Regular Octahedron (Oh Symmetry)',
+                geometry: 'Octahedral (AX₆)',
+                angles: '90.0° / 180.0° (F–S–F)',
+                hybrid: 'sp³d² Hypervalent',
+                lattice: 'Nonpolar (0 D)',
+                elements: ['S', 'F'],
+                hasLonePairs: false,
+                geometryDesc: 'Six fluorine atoms sit along the ±x, ±y, and ±z Cartesian axes around a central sulfur atom, forming the 6 vertices of a regular 8-faced octahedron with every adjacent bond angle at exactly 90°.',
+                combustionDesc: 'The dense, sterically shielded octahedral shell of fluorine atoms completely blocks chemical attack, making SF₆ an extraordinarily inert electrical insulating gas.'
+            },
+            xef4: {
+                id: 'xef4',
+                category: 'vsepr',
+                name: 'Xenon Tetrafluoride',
+                formula: 'XeF₄',
+                shortShape: 'Square Planar (AX₄E₂)',
+                roleBadge: 'VSEPR AX₄E₂ • 6 Electron Domains',
+                badgeClass: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30',
+                subtitle: 'Octahedral Electron Geometry with Trans Lone Pairs (D₄h)',
+                geometry: 'Square Planar (AX₄E₂)',
+                angles: '90.0° (F–Xe–F)',
+                hybrid: 'sp³d² (4 Bonds + 2 Lone Pairs)',
+                lattice: 'Nonpolar (0 D)',
+                elements: ['Xe', 'F'],
+                hasLonePairs: true,
+                geometryDesc: 'Six electron domains around xenon adopt an octahedral arrangement. To minimize repulsion, the two bulky lone pairs position themselves 180° apart on opposite axial poles—forcing the four fluorine atoms into a flat 90° square.',
+                combustionDesc: 'One of the first noble-gas compounds ever synthesized (1962), proving that heavy noble gases can form stable hypervalent bonds.'
+            },
+
+            // --- CATEGORY 3: RINGS, CONFORMATIONS & CAGES ---
+            benzene: {
+                id: 'benzene',
+                category: 'rings',
+                name: 'Benzene Aromatic Ring',
+                formula: 'C₆H₆',
+                shortShape: 'Planar Aromatic Hexagon',
+                roleBadge: 'Aromaticity • Hückel 6π Ring',
+                badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+                subtitle: 'Regular Planar Hexagon with Delocalized π-Ring (D₆h)',
+                geometry: 'Planar Hexagon (D₆h)',
+                angles: '120.0° (C–C–C & C–C–H)',
+                hybrid: 'sp² Aromatic Resonance',
+                lattice: 'Nonpolar (0 D)',
+                elements: ['C', 'H'],
+                hasLonePairs: false,
+                geometryDesc: 'Six sp² carbons form a perfectly regular, flat hexagon with identical 1.39 Å C–C bond lengths (intermediate between single and double bonds) and six coplanar C–H bonds radiating outward at 120°.',
+                combustionDesc: 'The unbroken loop of 6 delocalized π-electrons confers ~150 kJ/mol of extra resonance stabilization, making aromatic rings far more stable than ordinary alkenes.'
+            },
+            cyclohexane: {
+                id: 'cyclohexane',
+                category: 'rings',
+                name: 'Cyclohexane Chair',
+                formula: 'C₆H₁₂',
+                shortShape: 'Puckered 3D Chair Ring',
+                roleBadge: 'Conformational Isomerism',
+                badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+                subtitle: 'Strain-Free Chair Conformation (D₃d Symmetry)',
+                geometry: 'Puckered Chair (D₃d)',
+                angles: '111.4° (C–C–C)',
+                hybrid: 'sp³ Tetrahedral',
+                lattice: 'Axial vs. Equatorial H',
+                elements: ['C', 'H'],
+                hasLonePairs: false,
+                geometryDesc: 'Unlike flat benzene, saturated sp³ carbons require ~109.5° bond angles. A flat hexagon would have 120° angles and severe torsional eclipsing, so cyclohexane puckers into a 3D chair with 6 vertical axial and 6 outward equatorial hydrogens.',
+                combustionDesc: 'Eliminates both angle strain and torsional strain, making the chair conformation the lowest-energy structural motif in organic chemistry and sugars.'
+            },
+            p4: {
+                id: 'p4',
+                category: 'rings',
+                name: 'White Phosphorus',
+                formula: 'P₄',
+                shortShape: 'Strained Tetrahedral Cage',
+                roleBadge: 'Pyrophoric Allotrope',
+                badgeClass: 'bg-orange-500/15 text-orange-400 border-orange-500/30',
+                subtitle: 'Tetrahedral P₄ Molecule with Acute 60° Bond Angles (Td)',
+                geometry: 'Tetrahedral Cage (Td)',
+                angles: '60.0° (P–P–P)',
+                hybrid: 'Strained p³ + 1 Lone Pair/P',
+                lattice: 'High Angle Strain',
+                elements: ['P'],
+                hasLonePairs: true,
+                geometryDesc: 'Four phosphorus atoms sit at the vertices of a regular tetrahedron, each bonded to the other three. This forces the P–P–P bond angles down to an extreme 60°, creating immense ring/angle strain.',
+                combustionDesc: 'Because those bent "banana bonds" store massive geometric strain energy, white phosphorus spontaneously ignites in air (pyrophoric) upon contact with oxygen.'
+            },
+            c60: {
+                id: 'c60',
+                category: 'rings',
+                name: 'Buckminsterfullerene',
+                formula: 'C₆₀',
+                shortShape: 'Truncated Icosahedron',
+                roleBadge: 'Carbon Nanocage • 60 Atoms',
+                badgeClass: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+                subtitle: 'Soccer-Ball Cage: 20 Hexagons & 12 Pentagons (Ih)',
+                geometry: 'Truncated Icosahedron (Ih)',
+                angles: '120° Hex / 108° Pent',
+                hybrid: 'Pyramidalized sp²',
+                lattice: 'Icosahedral Cage',
+                elements: ['C'],
+                hasLonePairs: false,
+                geometryDesc: 'By Euler’s polyhedron formula, curving a flat hexagonal graphene sheet into a closed sphere requires introducing exactly 12 pentagons among 20 hexagons—creating the 60-vertex truncated icosahedron.',
+                combustionDesc: 'Discovered in 1985, C₆₀ exhibits the highest point-group symmetry (icosahedral Ih, 120 symmetry operations) of any known molecule.'
+            },
+
+            // --- CATEGORY 4: CRYSTALLINE LATTICE CELLS ---
+            diamond: {
+                id: 'diamond',
+                category: 'crystals',
+                name: 'Diamond Cubic Unit',
+                formula: 'C (sp³ 3D)',
+                shortShape: '3D Tetrahedral Network',
+                roleBadge: 'Covalent Network Crystal',
+                badgeClass: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
+                subtitle: 'Interlocking sp³ Tetrahedra in Cubic Unit Cell (Fd3̄m)',
+                geometry: '3D Tetrahedral Network',
+                angles: '109.47° (C–C–C)',
+                hybrid: 'sp³ Covalent Network',
+                lattice: 'Face-Centered Cubic Basis',
+                elements: ['C'],
+                hasLonePairs: false,
+                geometryDesc: 'Every carbon atom is covalently bonded to four neighbors at exact 109.47° tetrahedral angles, extending continuously in all three dimensions to form a rigid, interlocked chair-ring network.',
+                combustionDesc: 'Compare this 3D sp³ diamond lattice directly against the 2D sp² Charcoal Honeycomb: same carbon atoms, completely different dimensionality, hardness, and electrical conductivity.'
+            },
+            nacl: {
+                id: 'nacl',
+                category: 'crystals',
+                name: 'Sodium Chloride Cell',
+                formula: 'NaCl',
+                shortShape: 'Cubic Rock-Salt Lattice',
+                roleBadge: 'Ionic Unit Cell (6:6 Coord)',
+                badgeClass: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30',
+                subtitle: 'Face-Centered Cubic Ionic Lattice (Fm3̄m)',
+                geometry: 'Octahedral Coordination (6:6)',
+                angles: '90.0° / 180.0°',
+                hybrid: 'Pure Electrostatic Ionic',
+                lattice: 'Cubic Rock-Salt Cell',
+                elements: ['Na', 'Cl'],
+                hasLonePairs: false,
+                geometryDesc: 'Alternating Na⁺ cations and Cl⁻ anions occupy the vertices, edge centers, face centers, and body center of a cube—giving every ion an octahedral coordination shell of 6 oppositely charged neighbors.',
+                combustionDesc: 'High electrostatic lattice energy across all three axes gives rock-salt crystals their high melting point (801°C) and cubic cleavage planes.'
+            }
+        };
+
+        /**
+         * Application State
+         */
+        const state = {
+            viewMode: 'single',      // 'single' | 'compare'
+            selectedId: 'kno3',      // Active molecule in single mode
+            compareSlots: ['kno3', 's8', 'carbon'], // 3 molecules in compare mode
+            category: 'all',
+            searchQuery: '',
+            style: 'ballstick',      // 'ballstick' | 'spacefill'
+            showWireframe: true,
+            showLabels: true,
+            showLonePairs: true,
+            autoRotate: true
+        };
+
+        // Three.js Globals
+        let scene, camera, renderer, controls;
+        let masterGroup;
+        const moleculeGroups = {};   // Map of moleculeId -> THREE.Group
+        let atomMeshes = [];         // { mesh, bsRadius, vdwRadius }
+        let bondMeshes = [];         // Bond cylinders
+        let wireframeGroups = [];    // Polyhedral / geometric overlays
+        let lonePairGroups = [];     // Electron lone-pair lobes
+        let trackedLabels = [];      // { element, object3D, molId, isGroupTitle }
+
+        const CAMERA_PRESETS = {
+            single: { pos: new THREE.Vector3(0, 4.2, 10.2), target: new THREE.Vector3(0, 0, 0) },
+            compare: { pos: new THREE.Vector3(0, 7.2, 22.5), target: new THREE.Vector3(0, 0, 0) }
+        };
+
+        /**
+         * Initialize Three.js Scene & Build All 18 Molecules
+         */
+        function init() {
+            const container = document.getElementById('canvas-container');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x090d16);
+            scene.fog = new THREE.FogExp2(0x090d16, 0.014);
+
+            camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 160);
+            camera.position.copy(CAMERA_PRESETS.single.pos);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.15;
+            container.insertBefore(renderer.domElement, container.firstChild);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.06;
+            controls.minDistance = 3.5;
+            controls.maxDistance = 50;
+            controls.autoRotate = state.autoRotate;
+            controls.autoRotateSpeed = 1.3;
+
+            // Studio 3-Point Lighting
+            scene.add(new THREE.AmbientLight(0xffffff, 0.58));
+
+            const keyLight = new THREE.DirectionalLight(0xffffff, 1.15);
+            keyLight.position.set(12, 18, 14);
+            scene.add(keyLight);
+
+            const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.45);
+            fillLight.position.set(-14, -8, 10);
+            scene.add(fillLight);
+
+            const rimLight = new THREE.DirectionalLight(0xf59e0b, 0.35);
+            rimLight.position.set(0, 12, -16);
+            scene.add(rimLight);
+
+            // Reference Floor Grid
+            const gridHelper = new THREE.GridHelper(38, 38, 0x1e293b, 0x0f172a);
+            gridHelper.position.y = -3.8;
+            scene.add(gridHelper);
+
+            masterGroup = new THREE.Group();
+            scene.add(masterGroup);
+
+            // Build all 18 molecular geometries
+            buildAllMolecules();
+
+            // Render UI & Initial State
+            renderMoleculeList();
+            populateCompareSelects();
+            applySceneLayout();
+            applyVisualToggles();
+            updateInfoPanel();
+            updateDynamicLegend();
+            setupEventListeners();
+
+            animate();
+        }
+
+        /**
+         * Safely dispose of a molecule's 3D assets to prevent memory leaks
+         */
+        function disposeMoleculeGroup(molId) {
+            const group = moleculeGroups[molId];
+            if (!group) return;
+
+            // Traverse and dispose geometries and materials
+            group.traverse(child => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) {
+                    if (Array.isArray(child.material)) {
+                        child.material.forEach(m => m.dispose());
+                    } else {
+                        child.material.dispose();
+                    }
+                }
+            });
+
+            // Remove group from scene
+            masterGroup.remove(group);
+            delete moleculeGroups[molId];
+
+            // Clean up tracking arrays
+            atomMeshes = atomMeshes.filter(item => item.mesh.parent !== null && item.mesh.parent !== group);
+            bondMeshes = bondMeshes.filter(mesh => mesh.parent !== null && mesh.parent !== group);
+            wireframeGroups = wireframeGroups.filter(wg => wg !== group.userData.wfGroup);
+            lonePairGroups = lonePairGroups.filter(lpg => lpg !== group.userData.lpGroup);
+
+            // Remove and clean up associated HTML labels
+            trackedLabels = trackedLabels.filter(item => {
+                if (item.molId === molId) {
+                    if (item.element && item.element.parentNode) {
+                        item.element.parentNode.removeChild(item.element);
+                    }
+                    return false;
+                }
+                return true;
+            });
+        }
+
+        /**
+         * Geometry Primitive Helpers
+         */
+        function addAtom(molId, elKey, pos, labelText = null, customScale = 1.0) {
+            const el = getElementProps(elKey);
+            const group = moleculeGroups[molId];
+            const geom = new THREE.SphereGeometry(1, 28, 28);
+            const mat = new THREE.MeshStandardMaterial({
+                color: el.color,
+                roughness: 0.24,
+                metalness: 0.12
+            });
+            const mesh = new THREE.Mesh(geom, mat);
+            mesh.position.copy(pos);
+
+            const bsRadius = el.bs * customScale;
+            const vdwRadius = el.vdw * customScale;
+            mesh.scale.setScalar(bsRadius);
+            group.add(mesh);
+
+            atomMeshes.push({ mesh, bsRadius, vdwRadius });
+
+            if (labelText) {
+                const div = document.createElement('div');
+                div.className = 'atom-label';
+                div.textContent = labelText;
+                document.getElementById('labels-layer').appendChild(div);
+                trackedLabels.push({
+                    element: div,
+                    object3D: mesh,
+                    molId: molId,
+                    isGroupTitle: false
+                });
+            }
+            return pos;
+        }
+
+        function addBond(molId, posA, posB, { order = 1, radius = 0.10, color = 0x94a3b8 } = {}) {
+            const group = moleculeGroups[molId];
+            const dir = new THREE.Vector3().subVectors(posB, posA);
+            const len = dir.length();
+            const mid = new THREE.Vector3().addVectors(posA, posB).multiplyScalar(0.5);
+            const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+
+            const mat = new THREE.MeshStandardMaterial({
+                color: color,
+                roughness: 0.35,
+                metalness: 0.18
+            });
+
+            // Compute perpendicular offset vector in XZ or arbitrary normal plane
+            let perp = new THREE.Vector3(0, 0, 1);
+            if (Math.abs(dir.clone().normalize().dot(perp)) > 0.9) {
+                perp = new THREE.Vector3(1, 0, 0);
+            }
+            const side = new THREE.Vector3().crossVectors(dir, perp).normalize();
+
+            if (order === 1) {
+                const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, len, 18), mat);
+                mesh.position.copy(mid);
+                mesh.quaternion.copy(quat);
+                group.add(mesh);
+                bondMeshes.push(mesh);
+            } else if (order === 2 || order === 4) { // Treat aromatic bond (4) as double bond (2) visualization
+                [-1, 1].forEach(s => {
+                    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.68, radius * 0.68, len, 14), mat);
+                    mesh.position.copy(mid).addScaledVector(side, s * 0.11);
+                    mesh.quaternion.copy(quat);
+                    group.add(mesh);
+                    bondMeshes.push(mesh);
+                });
+            } else if (order === 3) {
+                [-1, 0, 1].forEach(s => {
+                    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius * 0.6, radius * 0.6, len, 14), mat);
+                    mesh.position.copy(mid).addScaledVector(side, s * 0.14);
+                    mesh.quaternion.copy(quat);
+                    group.add(mesh);
+                    bondMeshes.push(mesh);
+                });
+            }
+        }
+
+        function addLonePair(molId, atomPos, directionVec, distance = 0.72) {
+            const lpGroup = moleculeGroups[molId].userData.lpGroup;
+            const dir = directionVec.clone().normalize();
+            const lobeGeom = new THREE.SphereGeometry(0.32, 20, 20);
+            lobeGeom.scale(0.68, 1.38, 0.68);
+            const lobeMat = new THREE.MeshStandardMaterial({
+                color: 0xfde047,
+                transparent: true,
+                opacity: 0.36,
+                roughness: 0.2,
+                depthWrite: false
+            });
+            const lobeMesh = new THREE.Mesh(lobeGeom, lobeMat);
+            lobeMesh.position.copy(atomPos).addScaledVector(dir, distance);
+            lobeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+            lpGroup.add(lobeMesh);
+        }
+
+        function addWireframePolyhedron(molId, vertices, edges, faces = [], colorHex = 0x38bdf8) {
+            const wfGroup = moleculeGroups[molId].userData.wfGroup;
+
+            // Edges
+            edges.forEach(([i, j, dashed]) => {
+                const geom = new THREE.BufferGeometry().setFromPoints([vertices[i], vertices[j]]);
+                if (dashed) {
+                    const line = new THREE.Line(geom, new THREE.LineDashedMaterial({
+                        color: colorHex, dashSize: 0.2, gapSize: 0.14, transparent: true, opacity: 0.85
+                    }));
+                    line.computeLineDistances();
+                    wfGroup.add(line);
+                } else {
+                    wfGroup.add(new THREE.Line(geom, new THREE.LineBasicMaterial({
+                        color: colorHex, transparent: true, opacity: 0.8
+                    })));
+                }
+            });
+
+            // Translucent Faces
+            if (faces.length > 0) {
+                const positions = [];
+                faces.forEach(([a, b, c]) => {
+                    positions.push(
+                        vertices[a].x, vertices[a].y, vertices[a].z,
+                        vertices[b].x, vertices[b].y, vertices[b].z,
+                        vertices[c].x, vertices[c].y, vertices[c].z
+                    );
+                });
+                const faceGeom = new THREE.BufferGeometry();
+                faceGeom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+                const faceMat = new THREE.MeshBasicMaterial({
+                    color: colorHex,
+                    transparent: true,
+                    opacity: 0.14,
+                    side: THREE.DoubleSide,
+                    depthWrite: false
+                });
+                wfGroup.add(new THREE.Mesh(faceGeom, faceMat));
+            }
+        }
+
+        function createGroupContainer(molId, titleText, initialTiltX = 0.28) {
+            // First clean up any existing group to prevent duplication
+            if (moleculeGroups[molId]) {
+                disposeMoleculeGroup(molId);
+            }
+
+            const group = new THREE.Group();
+            group.userData.initialTiltX = initialTiltX;
+
+            const wfGroup = new THREE.Group();
+            group.add(wfGroup);
+            group.userData.wfGroup = wfGroup;
+            wireframeGroups.push(wfGroup);
+
+            const lpGroup = new THREE.Group();
+            group.add(lpGroup);
+            group.userData.lpGroup = lpGroup;
+            lonePairGroups.push(lpGroup);
+
+            // Group Title Anchor for Compare Mode
+            const titleAnchor = new THREE.Object3D();
+            titleAnchor.position.set(0, 4.1, 0);
+            group.add(titleAnchor);
+
+            const div = document.createElement('div');
+            div.className = 'group-title-label';
+            div.textContent = titleText;
+            document.getElementById('labels-layer').appendChild(div);
+            trackedLabels.push({
+                element: div,
+                object3D: titleAnchor,
+                molId: molId,
+                isGroupTitle: true
+            });
+
+            moleculeGroups[molId] = group;
+            masterGroup.add(group);
+            return group;
+        }
+
+        /**
+         * Build All 18 Molecular Geometries
+         */
+        function buildAllMolecules() {
+            // 1. KNO3 (Trigonal Planar NO3- in Hexagonal K+ Ring)
+            {
+                const id = 'kno3';
+                createGroupContainer(id, 'KNO₃ • Trigonal in Hexagonal Shell', 0.42);
+                const nPos = addAtom(id, 'N', new THREE.Vector3(0, 0, 0), 'N (sp²)');
+                const oPts = [];
+                for (let i = 0; i < 3; i++) {
+                    const a = (i * 2 * Math.PI) / 3 - Math.PI / 2;
+                    const p = addAtom(id, 'O', new THREE.Vector3(Math.cos(a) * 1.65, 0, Math.sin(a) * 1.65), i === 0 ? 'O (120°)' : 'O');
+                    oPts.push(p);
+                    addBond(id, nPos, p, { order: 2 });
+                }
+                const kPts = [];
+                for (let i = 0; i < 6; i++) {
+                    const a = (i * Math.PI) / 3;
+                    const p = addAtom(id, 'K', new THREE.Vector3(Math.cos(a) * 3.55, i % 2 === 0 ? 0.25 : -0.25, Math.sin(a) * 3.55), 'K⁺');
+                    kPts.push(p);
+                }
+                addWireframePolyhedron(id, oPts, [[0,1,false],[1,2,false],[2,0,false]], [[0,1,2]], 0x38bdf8);
+                addWireframePolyhedron(id, kPts, [[0,1,true],[1,2,true],[2,3,true],[3,4,true],[4,5,true],[5,0,true]], [], 0xc084fc);
+            }
+
+            // 2. S8 (Octasulfur Crown)
+            {
+                const id = 's8';
+                createGroupContainer(id, 'S₈ • Puckered Octasulfur Crown', 0.28);
+                const sPts = [];
+                const topPts = [], botPts = [];
+                for (let i = 0; i < 8; i++) {
+                    const a = (i * 2 * Math.PI) / 8;
+                    const up = i % 2 === 0;
+                    const p = addAtom(id, 'S', new THREE.Vector3(Math.cos(a) * 2.35, up ? 0.62 : -0.62, Math.sin(a) * 2.35), i === 0 ? 'S (107.9°)' : 'S');
+                    sPts.push(p);
+                    if (up) topPts.push(p); else botPts.push(p);
+
+                    const rad = new THREE.Vector3(Math.cos(a), 0, Math.sin(a));
+                    const vert = new THREE.Vector3(0, up ? 1 : -1, 0);
+                    addLonePair(id, p, rad.clone().multiplyScalar(0.45).addScaledVector(vert, 0.89));
+                    addLonePair(id, p, rad.clone().multiplyScalar(0.92).addScaledVector(vert, -0.38));
+                }
+                for (let i = 0; i < 8; i++) addBond(id, sPts[i], sPts[(i + 1) % 8], { radius: 0.13, color: 0xca8a04 });
+                addWireframePolyhedron(id, topPts, [[0,1,true],[1,2,true],[2,3,true],[3,0,true]], [[0,1,2],[0,2,3]], 0x38bdf8);
+                addWireframePolyhedron(id, botPts, [[0,1,true],[1,2,true],[2,3,true],[3,0,true]], [[0,1,2],[0,2,3]], 0xf43f5e);
+            }
+
+            // 3. Charcoal Hexagonal Carbon Lattice (7 Fused Rings)
+            {
+                const id = 'carbon';
+                createGroupContainer(id, 'Charcoal • Hexagonal Carbon Lattice', 0.45);
+                const b = 1.22;
+                const a1 = new THREE.Vector3(Math.sqrt(3) * b, 0, 0);
+                const a2 = new THREE.Vector3((Math.sqrt(3) / 2) * b, 0, 1.5 * b);
+                const centers = [
+                    new THREE.Vector3(0,0,0), a1, a1.clone().negate(), a2, a2.clone().negate(),
+                    new THREE.Vector3().subVectors(a2, a1), new THREE.Vector3().subVectors(a1, a2)
+                ];
+                const atoms = [];
+                centers.forEach(c => {
+                    const ringVerts = [];
+                    for (let k = 0; k < 6; k++) {
+                        const ang = (k * Math.PI) / 3 + Math.PI / 6;
+                        const pt = new THREE.Vector3(c.x + b * Math.cos(ang), 0, c.z + b * Math.sin(ang));
+                        ringVerts.push(pt);
+                        if (!atoms.some(ex => ex.distanceTo(pt) < 0.08)) atoms.push(pt);
+                    }
+                    addWireframePolyhedron(id, ringVerts, [[0,1,false],[1,2,false],[2,3,false],[3,4,false],[4,5,false],[5,0,false]], [[0,1,2],[0,2,3],[0,3,4],[0,4,5]], 0x10b981);
+                });
+                atoms.forEach((p, idx) => addAtom(id, 'C', p, idx === 0 ? 'C (120° sp²)' : (p.length() < b * 1.15 ? 'C' : null)));
+                for (let i = 0; i < atoms.length; i++) {
+                    for (let j = i + 1; j < atoms.length; j++) {
+                        if (Math.abs(atoms[i].distanceTo(atoms[j]) - b) < 0.08) addBond(id, atoms[i], atoms[j], { color: 0x64748b });
+                    }
+                }
+            }
+
+            // 4. RDX (C3H6N6O6 Chair Hexagonal Nitramine)
+            {
+                const id = 'rdx';
+                createGroupContainer(id, 'RDX • Hexagonal Nitramine Ring', 0.35);
+                const r = 1.65, h = 0.36;
+                const ringPts = [];
+                for (let i = 0; i < 6; i++) {
+                    const ang = (i * Math.PI) / 3;
+                    const isN = i % 2 === 0;
+                    const y = isN ? h : -h;
+                    const pos = new THREE.Vector3(Math.cos(ang) * r, y, Math.sin(ang) * r);
+                    ringPts.push(pos);
+                    addAtom(id, isN ? 'N' : 'C', pos, isN ? 'N' : 'C');
+
+                    const radOut = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang)).normalize();
+                    if (isN) {
+                        // Attach Nitro group (-NO2)
+                        const n2Pos = pos.clone().addScaledVector(radOut, 1.35).add(new THREE.Vector3(0, 0.35, 0));
+                        addAtom(id, 'N', n2Pos, 'NO₂');
+                        addBond(id, pos, n2Pos);
+                        const tang = new THREE.Vector3(-Math.sin(ang), 0, Math.cos(ang));
+                        const o1 = n2Pos.clone().addScaledVector(radOut, 0.72).addScaledVector(tang, 0.85);
+                        const o2 = n2Pos.clone().addScaledVector(radOut, 0.72).addScaledVector(tang, -0.85);
+                        addAtom(id, 'O', o1, 'O');
+                        addAtom(id, 'O', o2, 'O');
+                        addBond(id, n2Pos, o1, { order: 2 });
+                        addBond(id, n2Pos, o2, { order: 2 });
+                    } else {
+                        // Attach CH2 hydrogens
+                        const h1 = pos.clone().addScaledVector(radOut, 0.85).add(new THREE.Vector3(0, 0.55, 0));
+                        const h2 = pos.clone().add(new THREE.Vector3(0, -1.02, 0));
+                        addAtom(id, 'H', h1);
+                        addAtom(id, 'H', h2);
+                        addBond(id, pos, h1, { radius: 0.07 });
+                        addBond(id, pos, h2, { radius: 0.07 });
+                    }
+                }
+                for (let i = 0; i < 6; i++) addBond(id, ringPts[i], ringPts[(i + 1) % 6]);
+                addWireframePolyhedron(id, ringPts, [[0,1,true],[1,2,true],[2,3,true],[3,4,true],[4,5,true],[5,0,true]], [[0,1,2],[0,2,3],[0,3,4],[0,4,5]], 0xf43f5e);
+            }
+
+            // 5. CO2 (Linear AX2)
+            {
+                const id = 'co2';
+                createGroupContainer(id, 'CO₂ • Linear (180°)', 0.15);
+                const c = addAtom(id, 'C', new THREE.Vector3(0, 0, 0), 'C (180° sp)');
+                const o1 = addAtom(id, 'O', new THREE.Vector3(-1.85, 0, 0), 'O');
+                const o2 = addAtom(id, 'O', new THREE.Vector3(1.85, 0, 0), 'O');
+                addBond(id, c, o1, { order: 2 });
+                addBond(id, c, o2, { order: 2 });
+                addLonePair(id, o1, new THREE.Vector3(-0.6, 0.8, 0), 0.65);
+                addLonePair(id, o1, new THREE.Vector3(-0.6, -0.8, 0), 0.65);
+                addLonePair(id, o2, new THREE.Vector3(0.6, 0.8, 0), 0.65);
+                addLonePair(id, o2, new THREE.Vector3(0.6, -0.8, 0), 0.65);
+                addWireframePolyhedron(id, [o1, o2], [[0,1,true]], [], 0x38bdf8);
+            }
+
+            // 6. H2O (Bent AX2E2)
+            {
+                const id = 'h2o';
+                createGroupContainer(id, 'H₂O • Bent (104.5°)', 0.22);
+                const o = addAtom(id, 'O', new THREE.Vector3(0, 0.3, 0), 'O (104.5°)');
+                const halfAng = (104.5 * Math.PI) / 360;
+                const d = 1.55;
+                const h1 = addAtom(id, 'H', new THREE.Vector3(-Math.sin(halfAng) * d, 0.3 - Math.cos(halfAng) * d, 0), 'H');
+                const h2 = addAtom(id, 'H', new THREE.Vector3(Math.sin(halfAng) * d, 0.3 - Math.cos(halfAng) * d, 0), 'H');
+                addBond(id, o, h1);
+                addBond(id, o, h2);
+                const lp1 = new THREE.Vector3(0, 0.75, 0.78);
+                const lp2 = new THREE.Vector3(0, 0.75, -0.78);
+                addLonePair(id, o, lp1, 0.72);
+                addLonePair(id, o, lp2, 0.72);
+                const tetPts = [h1, h2, o.clone().addScaledVector(lp1.normalize(), 1.5), o.clone().addScaledVector(lp2.normalize(), 1.5)];
+                addWireframePolyhedron(id, tetPts, [[0,1,true],[0,2,true],[0,3,true],[1,2,true],[1,3,true],[2,3,true]], [], 0x38bdf8);
+            }
+
+            // 7. BF3 (Trigonal Planar AX3)
+            {
+                const id = 'bf3';
+                createGroupContainer(id, 'BF₃ • Trigonal Planar (120°)', 0.48);
+                const b = addAtom(id, 'B', new THREE.Vector3(0, 0, 0), 'B (120° sp²)');
+                const fPts = [];
+                for (let i = 0; i < 3; i++) {
+                    const a = (i * 2 * Math.PI) / 3 - Math.PI / 2;
+                    const p = addAtom(id, 'F', new THREE.Vector3(Math.cos(a) * 1.85, 0, Math.sin(a) * 1.85), 'F');
+                    fPts.push(p);
+                    addBond(id, b, p);
+                }
+                addWireframePolyhedron(id, fPts, [[0,1,false],[1,2,false],[2,0,false]], [[0,1,2]], 0x22c55e);
+            }
+
+            // 8. NH3 (Trigonal Pyramidal AX3E)
+            {
+                const id = 'nh3';
+                createGroupContainer(id, 'NH₃ • Trigonal Pyramidal (107°)', 0.24);
+                const n = addAtom(id, 'N', new THREE.Vector3(0, 0.45, 0), 'N (107° sp³)');
+                const hPts = [];
+                const r = 1.52, y = -0.35;
+                for (let i = 0; i < 3; i++) {
+                    const a = (i * 2 * Math.PI) / 3;
+                    const p = addAtom(id, 'H', new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r), 'H');
+                    hPts.push(p);
+                    addBond(id, n, p);
+                }
+                addLonePair(id, n, new THREE.Vector3(0, 1, 0), 0.78);
+                addWireframePolyhedron(id, [n, ...hPts], [[0,1,true],[0,2,true],[0,3,true],[1,2,false],[2,3,false],[3,1,false]], [[1,2,3]], 0x3b82f6);
+            }
+
+            // 9. CH4 (Tetrahedral AX4)
+            {
+                const id = 'ch4';
+                createGroupContainer(id, 'CH₄ • Tetrahedral (109.5°)', 0.25);
+                const c = addAtom(id, 'C', new THREE.Vector3(0, 0, 0), 'C (109.5° sp³)');
+                const s = 1.15;
+                const dirs = [
+                    new THREE.Vector3(1, 1, 1),
+                    new THREE.Vector3(1, -1, -1),
+                    new THREE.Vector3(-1, 1, -1),
+                    new THREE.Vector3(-1, -1, 1)
+                ];
+                const hPts = dirs.map((d, i) => {
+                    const p = addAtom(id, 'H', d.clone().multiplyScalar(s), i === 0 ? 'H (109.5°)' : 'H');
+                    addBond(id, c, p);
+                    return p;
+                });
+                addWireframePolyhedron(id, hPts, [[0,1,false],[0,2,false],[0,3,false],[1,2,false],[1,3,false],[2,3,false]], [[0,1,2],[0,1,3],[0,2,3],[1,2,3]], 0x38bdf8);
+            }
+
+            // 10. PCl5 (Trigonal Bipyramidal AX5)
+            {
+                const id = 'pcl5';
+                createGroupContainer(id, 'PCl₅ • Trigonal Bipyramidal', 0.22);
+                const pAtom = addAtom(id, 'P', new THREE.Vector3(0, 0, 0), 'P (sp³d)');
+                const clPts = [];
+                // 3 Equatorial (120 deg)
+                for (let i = 0; i < 3; i++) {
+                    const a = (i * 2 * Math.PI) / 3;
+                    const pt = addAtom(id, 'Cl', new THREE.Vector3(Math.cos(a) * 1.9, 0, Math.sin(a) * 1.9), 'Cl (Eq 120°)');
+                    clPts.push(pt);
+                    addBond(id, pAtom, pt);
+                }
+                // 2 Axial (90 deg)
+                const axTop = addAtom(id, 'Cl', new THREE.Vector3(0, 2.05, 0), 'Cl (Ax 90°)');
+                const axBot = addAtom(id, 'Cl', new THREE.Vector3(0, -2.05, 0), 'Cl (Ax)');
+                clPts.push(axTop, axBot);
+                addBond(id, pAtom, axTop);
+                addBond(id, pAtom, axBot);
+                addWireframePolyhedron(id, clPts, [
+                    [0,1,false],[1,2,false],[2,0,false],
+                    [3,0,true],[3,1,true],[3,2,true],
+                    [4,0,true],[4,1,true],[4,2,true]
+                ], [[0,1,2],[3,0,1],[3,1,2],[3,2,0],[4,0,1],[4,1,2],[4,2,0]], 0xf97316);
+            }
+
+            // 11. SF6 (Octahedral AX6)
+            {
+                const id = 'sf6';
+                createGroupContainer(id, 'SF₆ • Octahedral (90°)', 0.28);
+                const sAtom = addAtom(id, 'S', new THREE.Vector3(0, 0, 0), 'S (90° sp³d²)');
+                const d = 1.95;
+                const dirs = [
+                    new THREE.Vector3(d, 0, 0), new THREE.Vector3(-d, 0, 0),
+                    new THREE.Vector3(0, d, 0), new THREE.Vector3(0, -d, 0),
+                    new THREE.Vector3(0, 0, d), new THREE.Vector3(0, 0, -d)
+                ];
+                const fPts = dirs.map((v, i) => {
+                    const p = addAtom(id, 'F', v, i === 2 ? 'F (90°)' : 'F');
+                    addBond(id, sAtom, p);
+                    return p;
+                });
+                // 0:+x, 1:-x, 2:+y, 3:-y, 4:+z, 5:-z
+                addWireframePolyhedron(id, fPts, [
+                    [2,0,false],[2,1,false],[2,4,false],[2,5,false],
+                    [3,0,false],[3,1,false],[3,4,false],[3,5,false],
+                    [0,4,false],[4,1,false],[1,5,false],[5,0,false]
+                ], [[2,0,4],[2,4,1],[2,1,5],[2,5,0],[3,0,4],[3,4,1],[3,1,5],[3,5,0]], 0x22c55e);
+            }
+
+            // 12. XeF4 (Square Planar AX4E2)
+            {
+                const id = 'xef4';
+                createGroupContainer(id, 'XeF₄ • Square Planar (90°)', 0.36);
+                const xe = addAtom(id, 'Xe', new THREE.Vector3(0, 0, 0), 'Xe (90°)');
+                const d = 1.9;
+                const fPts = [
+                    new THREE.Vector3(d, 0, 0), new THREE.Vector3(0, 0, d),
+                    new THREE.Vector3(-d, 0, 0), new THREE.Vector3(0, 0, -d)
+                ].map(v => {
+                    const p = addAtom(id, 'F', v, 'F');
+                    addBond(id, xe, p);
+                    return p;
+                });
+                addLonePair(id, xe, new THREE.Vector3(0, 1, 0), 0.85);
+                addLonePair(id, xe, new THREE.Vector3(0, -1, 0), 0.85);
+                addWireframePolyhedron(id, fPts, [[0,1,false],[1,2,false],[2,3,false],[3,0,false]], [[0,1,2],[0,2,3]], 0x06b6d4);
+            }
+
+            // 13. Benzene (C6H6 Planar Aromatic Ring)
+            {
+                const id = 'benzene';
+                createGroupContainer(id, 'C₆H₆ • Benzene Aromatic Ring', 0.45);
+                const rC = 1.48, rH = 2.55;
+                const cPts = [];
+                for (let i = 0; i < 6; i++) {
+                    const a = (i * Math.PI) / 3;
+                    const cp = addAtom(id, 'C', new THREE.Vector3(Math.cos(a) * rC, 0, Math.sin(a) * rC), i === 0 ? 'C (120°)' : 'C');
+                    const hp = addAtom(id, 'H', new THREE.Vector3(Math.cos(a) * rH, 0, Math.sin(a) * rH), 'H');
+                    cPts.push(cp);
+                    addBond(id, cp, hp, { radius: 0.07 });
+                }
+                for (let i = 0; i < 6; i++) {
+                    addBond(id, cPts[i], cPts[(i + 1) % 6], { order: i % 2 === 0 ? 2 : 1 });
+                }
+                addWireframePolyhedron(id, cPts, [[0,1,false],[1,2,false],[2,3,false],[3,4,false],[4,5,false],[5,0,false]], [[0,1,2],[0,2,3],[0,3,4],[0,4,5]], 0x38bdf8);
+            }
+
+            // 14. Cyclohexane (C6H12 Chair Conformation)
+            {
+                const id = 'cyclohexane';
+                createGroupContainer(id, 'C₆H₁₂ • Cyclohexane Chair', 0.28);
+                const r = 1.65, yPuck = 0.34;
+                const cPts = [];
+                for (let i = 0; i < 6; i++) {
+                    const a = (i * Math.PI) / 3;
+                    const up = i % 2 === 0;
+                    const cp = addAtom(id, 'C', new THREE.Vector3(Math.cos(a) * r, up ? yPuck : -yPuck, Math.sin(a) * r), i === 0 ? 'C (111.4°)' : 'C');
+                    cPts.push(cp);
+
+                    // Axial H (straight up or down) & Equatorial H (outward & slightly opposite)
+                    const hAx = addAtom(id, 'H', cp.clone().add(new THREE.Vector3(0, up ? 1.05 : -1.05, 0)), i === 0 ? 'H (Ax)' : null);
+                    const radOut = new THREE.Vector3(Math.cos(a), up ? -0.32 : 0.32, Math.sin(a)).normalize();
+                    const hEq = addAtom(id, 'H', cp.clone().addScaledVector(radOut, 1.05), i === 0 ? 'H (Eq)' : null);
+                    addBond(id, cp, hAx, { radius: 0.07 });
+                    addBond(id, cp, hEq, { radius: 0.07 });
+                }
+                for (let i = 0; i < 6; i++) addBond(id, cPts[i], cPts[(i + 1) % 6]);
+                addWireframePolyhedron(id, cPts, [[0,1,true],[1,2,true],[2,3,true],[3,4,true],[4,5,true],[5,0,true]], [[0,1,2],[0,2,3],[0,3,4],[0,4,5]], 0x10b981);
+            }
+
+            // 15. White Phosphorus (P4 Strained Tetrahedron)
+            {
+                const id = 'p4';
+                createGroupContainer(id, 'P₄ • White Phosphorus (60°)', 0.24);
+                const s = 1.35;
+                const dirs = [
+                    new THREE.Vector3(1, 1, 1),
+                    new THREE.Vector3(1, -1, -1),
+                    new THREE.Vector3(-1, 1, -1),
+                    new THREE.Vector3(-1, -1, 1)
+                ];
+                const pPts = dirs.map((d, i) => {
+                    const p = addAtom(id, 'P', d.clone().multiplyScalar(s), i === 0 ? 'P (60°)' : 'P');
+                    addLonePair(id, p, d, 0.78);
+                    return p;
+                });
+                const edges = [[0,1,false],[0,2,false],[0,3,false],[1,2,false],[1,3,false],[2,3,false]];
+                edges.forEach(([i, j]) => addBond(id, pPts[i], pPts[j], { radius: 0.12, color: 0xea580c }));
+                addWireframePolyhedron(id, pPts, edges, [[0,1,2],[0,1,3],[0,2,3],[1,2,3]], 0xf97316);
+            }
+
+            // 16. Buckminsterfullerene (C60 Truncated Icosahedron)
+            {
+                const id = 'c60';
+                createGroupContainer(id, 'C₆₀ • Buckminsterfullerene', 0.22);
+                const phi = (1 + Math.sqrt(5)) / 2;
+                const rawVerts = [];
+                const addPerms = (x, y, z) => {
+                    const signsX = x === 0 ? [1] : [1, -1];
+                    const signsY = y === 0 ? [1] : [1, -1];
+                    const signsZ = z === 0 ? [1] : [1, -1];
+                    signsX.forEach(sx => signsY.forEach(sy => signsZ.forEach(sz => {
+                        rawVerts.push(new THREE.Vector3(sx * x, sy * y, sz * z));
+                        rawVerts.push(new THREE.Vector3(sy * y, sz * z, sx * x));
+                        rawVerts.push(new THREE.Vector3(sz * z, sx * x, sy * y));
+                    })));
+                };
+                // Standard 60 vertices of a truncated icosahedron
+                addPerms(0, 1, 3 * phi);
+                addPerms(1, 2 + phi, 2 * phi);
+                addPerms(phi, 2, 2 * phi + 1);
+
+                // Deduplicate & scale cleanly to radius ~2.85
+                const scaleFactor = 0.58;
+                const c60Pts = [];
+                rawVerts.forEach(v => {
+                    const sv = v.clone().multiplyScalar(scaleFactor);
+                    if (!c60Pts.some(ex => ex.distanceTo(sv) < 0.1)) c60Pts.push(sv);
+                });
+
+                c60Pts.forEach((p, idx) => {
+                    addAtom(id, 'C', p, idx === 0 ? 'C (sp²)' : null, 0.68);
+                });
+
+                // Edge distance in unscaled coords is 2.0 -> scaled is 2.0 * 0.58 = 1.16
+                const targetEdge = 2.0 * scaleFactor;
+                const wfEdges = [];
+                for (let i = 0; i < c60Pts.length; i++) {
+                    for (let j = i + 1; j < c60Pts.length; j++) {
+                        if (Math.abs(c60Pts[i].distanceTo(c60Pts[j]) - targetEdge) < 0.06) {
+                            addBond(id, c60Pts[i], c60Pts[j], { radius: 0.065, color: 0x64748b });
+                            wfEdges.push([i, j, false]);
+                        }
+                    }
+                }
+                addWireframePolyhedron(id, c60Pts, wfEdges, [], 0xa855f7);
+            }
+
+            // 17. Diamond Cubic Unit Cell (sp3 3D Network)
+            {
+                const id = 'diamond';
+                createGroupContainer(id, 'Diamond • 3D sp³ Cubic Unit Cell', 0.25);
+                const L = 3.2; // Unit cell edge length
+                const half = L / 2;
+                const fracCoords = [
+                    // 8 Corners
+                    [0,0,0],[1,0,0],[0,1,0],[0,0,1],[1,1,0],[1,0,1],[0,1,1],[1,1,1],
+                    // 6 Face Centers
+                    [0.5,0.5,0],[0.5,0,0.5],[0,0.5,0.5],[0.5,0.5,1],[0.5,1,0.5],[1,0.5,0.5],
+                    // 4 Interior Tetrahedral Sites
+                    [0.25,0.25,0.25],[0.75,0.75,0.25],[0.75,0.25,0.75],[0.25,0.75,0.75]
+                ];
+                const dPts = fracCoords.map(([fx, fy, fz], i) => {
+                    const p = new THREE.Vector3(fx * L - half, fy * L - half, fz * L - half);
+                    addAtom(id, 'C', p, i === 14 ? 'C (109.5° sp³)' : null, 0.85);
+                    return p;
+                });
+
+                // Nearest-neighbor bond length in diamond cubic is (sqrt(3)/4)*L
+                const bondLen = (Math.sqrt(3) / 4) * L;
+                for (let i = 0; i < dPts.length; i++) {
+                    for (let j = i + 1; j < dPts.length; j++) {
+                        if (Math.abs(dPts[i].distanceTo(dPts[j]) - bondLen) < 0.08) {
+                            addBond(id, dPts[i], dPts[j], { radius: 0.09, color: 0x38bdf8 });
+                        }
+                    }
+                }
+                // Unit cell cube wireframe (indices 0..7 are the 8 corners)
+                addWireframePolyhedron(id, dPts, [
+                    [0,1,true],[0,2,true],[0,3,true],
+                    [1,4,true],[1,5,true],[2,4,true],[2,6,true],[3,5,true],[3,6,true],
+                    [7,4,true],[7,5,true],[7,6,true]
+                ], [], 0x38bdf8);
+            }
+
+            // 18. Sodium Chloride (NaCl Rock-Salt 3x3x3 Unit Cell)
+            {
+                const id = 'nacl';
+                createGroupContainer(id, 'NaCl • Cubic Rock-Salt Lattice', 0.25);
+                const step = 1.55;
+                const naPts = [];
+                const clPts = [];
+                const allPts = [];
+                const cellEdges = [];
+
+                for (let ix = -1; ix <= 1; ix++) {
+                    for (let iy = -1; iy <= 1; iy++) {
+                        for (let iz = -1; iz <= 1; iz++) {
+                            const isNa = (Math.abs(ix + iy + iz) % 2 === 1);
+                            const p = new THREE.Vector3(ix * step, iy * step, iz * step);
+                            const label = (ix === 0 && iy === 0 && iz === 0) ? 'Cl⁻ (6-coord)' : (ix === 1 && iy === 0 && iz === 0 ? 'Na⁺' : null);
+                            addAtom(id, isNa ? 'Na' : 'Cl', p, label, 0.85);
+                            allPts.push(p);
+                        }
+                    }
+                }
+
+                // Ionic grid lines connecting adjacent ions at distance = step
+                for (let i = 0; i < allPts.length; i++) {
+                    for (let j = i + 1; j < allPts.length; j++) {
+                        if (Math.abs(allPts[i].distanceTo(allPts[j]) - step) < 0.05) {
+                            cellEdges.push([i, j, true]);
+                        }
+                    }
+                }
+                addWireframePolyhedron(id, allPts, cellEdges, [], 0x94a3b8);
+            }
+        }
+
+        /**
+         * Update the Right-Hand Scientific Info Panel based on Active Mode & Selection
+         */
+        function updateInfoPanel() {
+            const titleEl = document.getElementById('info-title');
+            const subtitleEl = document.getElementById('info-subtitle');
+            const roleBadgeEl = document.getElementById('info-role-badge');
+            const formulaEl = document.getElementById('info-formula');
+            const geometryEl = document.getElementById('info-geometry');
+            const anglesEl = document.getElementById('info-angles');
+            const hybridEl = document.getElementById('info-hybrid');
+            const latticeEl = document.getElementById('info-lattice');
+            const geometryDescEl = document.getElementById('info-geometry-desc');
+            const combustionDescEl = document.getElementById('info-combustion-desc');
+
+            if (state.viewMode === 'compare') {
+                titleEl.textContent = '3-Way Comparison Studio';
+                subtitleEl.textContent = 'Simultaneous structural analysis of three active molecular slots';
+                roleBadgeEl.textContent = 'Comparative Analysis';
+                roleBadgeEl.className = 'px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/30';
+                formulaEl.textContent = 'COMPARE';
+
+                const mol0 = MOLECULES[state.compareSlots[0]];
+                const mol1 = MOLECULES[state.compareSlots[1]];
+                const mol2 = MOLECULES[state.compareSlots[2]];
+
+                if (mol0 && mol1 && mol2) {
+                    geometryEl.innerHTML = `<span class="text-sky-300 font-mono">${mol0.shortShape}</span>`;
+                    anglesEl.innerHTML = `<span class="text-amber-300 font-mono">${mol1.shortShape}</span>`;
+                    hybridEl.innerHTML = `<span class="text-emerald-300 font-mono">${mol2.shortShape}</span>`;
+                    latticeEl.textContent = '3-Slot Parallel View';
+
+                    geometryDescEl.textContent = `You are actively comparing three distinct chemical architectures side-by-side. Notice the fundamental differences in geometric dimensionality: from 1D linear chains and 2D planar rings to 3D puckered crowns and infinite crystalline lattices.`;
+                    combustionDescEl.textContent = `Use the bottom controls to toggle between Ball & Stick and Space-Filling (vdW) modes. Transitioning to Space-Filling mode visually demonstrates how packing density and steric bulk dictate reactivity, ignition sensitivity, and detonation velocity in energetic materials.`;
+                }
+                return;
+            }
+
+            // Single Explorer Mode
+            const mol = MOLECULES[state.selectedId];
+            if (!mol) return;
+
+            titleEl.textContent = mol.name;
+            subtitleEl.textContent = mol.subtitle;
+            roleBadgeEl.textContent = mol.roleBadge;
+            roleBadgeEl.className = `px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider border ${mol.badgeClass}`;
+            formulaEl.textContent = mol.formula;
+
+            geometryEl.textContent = mol.geometry;
+            anglesEl.textContent = mol.angles;
+            hybridEl.textContent = mol.hybrid;
+            latticeEl.textContent = mol.lattice;
+
+            geometryDescEl.textContent = mol.geometryDesc;
+            combustionDescEl.textContent = mol.combustionDesc;
+        }
+
+        /**
+         * Render Left Sidebar Molecule Catalog
+         */
+        function renderMoleculeList() {
+            const listEl = document.getElementById('molecule-list');
+            const query = state.searchQuery.toLowerCase().trim();
+            listEl.innerHTML = '';
+
+            Object.values(MOLECULES).forEach(mol => {
+                // Filter by category
+                if (state.category !== 'all' && mol.category !== state.category) return;
+                // Filter by search query
+                if (query) {
+                    const hay = `${mol.name} ${mol.formula} ${mol.shortShape} ${mol.angles} ${mol.geometry}`.toLowerCase();
+                    if (!hay.includes(query)) return;
+                }
+
+                const isActive = (state.viewMode === 'single' && state.selectedId === mol.id);
+                const btn = document.createElement('button');
+                btn.className = `w-full text-left px-3 py-2.5 rounded-xl border transition-all flex items-center justify-between gap-2 ${
+                    isActive
+                        ? 'bg-sky-600/20 border-sky-500/60 text-white shadow-sm'
+                        : 'bg-slate-950/60 border-slate-800/80 text-slate-300 hover:bg-slate-800/60 hover:border-slate-700'
+                }`;
+
+                btn.innerHTML = `
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1.5">
+                            <span class="font-semibold text-xs truncate ${isActive ? 'text-white' : 'text-slate-200'}">${mol.name}</span>
+                        </div>
+                        <div class="text-[11px] text-slate-400 truncate mt-0.5">${mol.shortShape}</div>
+                    </div>
+                    <span class="font-mono text-[11px] font-semibold px-2 py-0.5 rounded bg-slate-900 border border-slate-700/80 text-sky-300 shrink-0">
+                        ${mol.formula}
+                    </span>
+                `;
+
+                btn.addEventListener('click', () => {
+                    state.selectedId = mol.id;
+                    if (state.viewMode !== 'single') {
+                        setViewMode('single');
+                    } else {
+                        renderMoleculeList();
+                        applySceneLayout();
+                        applyVisualToggles();
+                        updateInfoPanel();
+                        updateDynamicLegend();
+                    }
+                });
+
+                listEl.appendChild(btn);
+            });
+        }
+
+        /**
+         * Populate the 3 Dropdown Selectors in Compare Studio
+         */
+        function populateCompareSelects() {
+            const selects = [
+                document.getElementById('compare-slot-0'),
+                document.getElementById('compare-slot-1'),
+                document.getElementById('compare-slot-2')
+            ];
+
+            selects.forEach((sel, slotIdx) => {
+                sel.innerHTML = '';
+                Object.values(MOLECULES).forEach(mol => {
+                    const opt = document.createElement('option');
+                    opt.value = mol.id;
+                    opt.textContent = `${mol.name} (${mol.formula})`;
+                    if (state.compareSlots[slotIdx] === mol.id) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+
+                sel.addEventListener('change', (e) => {
+                    state.compareSlots[slotIdx] = e.target.value;
+                    applySceneLayout();
+                    applyVisualToggles();
+                    updateInfoPanel();
+                    updateDynamicLegend();
+                });
+            });
+        }
+
+        /**
+         * Switch between Single Explorer and 3-Way Compare Studio
+         */
+        function setViewMode(mode) {
+            state.viewMode = mode;
+            const singleBtn = document.getElementById('view-single-btn');
+            const compareBtn = document.getElementById('view-compare-btn');
+            const compareBar = document.getElementById('compare-selector-bar');
+
+            if (mode === 'single') {
+                singleBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-sky-600 text-white shadow-sm';
+                compareBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-amber-400 hover:text-amber-300 hover:bg-slate-800/70 flex items-center gap-1.5';
+                compareBar.classList.add('hidden');
+            } else {
+                compareBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all bg-amber-500 text-slate-950 shadow-sm flex items-center gap-1.5';
+                singleBtn.className = 'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white hover:bg-slate-800/70';
+                compareBar.classList.remove('hidden');
+            }
+
+            renderMoleculeList();
+            applySceneLayout();
+            applyVisualToggles();
+            updateInfoPanel();
+            updateDynamicLegend();
+        }
+
+        /**
+         * Position Active Molecule(s) in 3D Viewport
+         */
+        function applySceneLayout() {
+            // Hide all groups first
+            Object.values(moleculeGroups).forEach(g => {
+                g.visible = false;
+                g.position.set(0, 0, 0);
+            });
+
+            if (state.viewMode === 'single') {
+                const grp = moleculeGroups[state.selectedId];
+                if (grp) {
+                    grp.visible = true;
+                    grp.position.set(0, 0, 0);
+                    grp.rotation.set(grp.userData.initialTiltX || 0.25, 0, 0);
+                }
+                camera.position.copy(CAMERA_PRESETS.single.pos);
+                controls.target.copy(CAMERA_PRESETS.single.target);
+            } else {
+                const xOffsets = [-8.6, 0, 8.6];
+                state.compareSlots.forEach((molId, idx) => {
+                    const grp = moleculeGroups[molId];
+                    if (grp) {
+                        grp.visible = true;
+                        grp.position.set(xOffsets[idx], 0, 0);
+                        grp.rotation.set(grp.userData.initialTiltX || 0.25, 0, 0);
+                    }
+                });
+                camera.position.copy(CAMERA_PRESETS.compare.pos);
+                controls.target.copy(CAMERA_PRESETS.compare.target);
+            }
+            controls.update();
+        }
+
+        /**
+         * Update Ball-and-Stick vs Space-Filling, Wireframes, and Lone Pairs
+         */
+        function applyVisualToggles() {
+            const isSpaceFill = state.style === 'spacefill';
+
+            atomMeshes.forEach(({ mesh, bsRadius, vdwRadius }) => {
+                mesh.scale.setScalar(isSpaceFill ? vdwRadius : bsRadius);
+            });
+            bondMeshes.forEach(bond => {
+                bond.visible = !isSpaceFill;
+            });
+            wireframeGroups.forEach(wf => {
+                wf.visible = state.showWireframe;
+            });
+            lonePairGroups.forEach(lp => {
+                lp.visible = state.showLonePairs && !isSpaceFill;
+            });
+
+            // Highlight Lone Pairs toggle button when active molecule actually has lone pairs
+            const activeIds = state.viewMode === 'single' ? [state.selectedId] : state.compareSlots;
+            const anyHasLP = activeIds.some(id => MOLECULES[id] && MOLECULES[id].hasLonePairs);
+            const lpBtn = document.getElementById('toggle-lonepairs');
+            lpBtn.classList.toggle('opacity-40', !anyHasLP);
+        }
+
+        /**
+         * Dynamically Update the Top-Left CPK Element Legend for Active Structure(s)
+         */
+        function updateDynamicLegend() {
+            const legendEl = document.getElementById('dynamic-legend');
+            const activeIds = state.viewMode === 'single' ? [state.selectedId] : state.compareSlots;
+            const elemSet = new Set();
+
+            activeIds.forEach(id => {
+                const mol = MOLECULES[id];
+                if (mol) mol.elements.forEach(el => elemSet.add(el));
+            });
+
+            legendEl.innerHTML = Array.from(elemSet).map(key => {
+                const el = getElementProps(key);
+                return `
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-2.5 h-2.5 rounded-full inline-block border border-white/25" style="background-color: ${el.css}"></span>
+                        <span class="text-slate-200 font-medium">${el.symbol} <span class="text-slate-400 text-[10px]">(${el.name})</span></span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        /**
+         * Parse V2000 SDF/MOL or XYZ 3D Coordinate Files & Build 3D Mesh
+         */
+        function parseAndBuildStructure({ id, name, formula, sdfText, xyzText, sourceLabel, meta = {} }) {
+            const atoms = [];
+            const bonds = [];
+
+            if (sdfText) {
+                const lines = sdfText.split(/\r?\n/);
+                let countsIdx = lines.findIndex(l => l.includes('V2000'));
+                if (countsIdx === -1 && lines.length > 3) countsIdx = 3;
+
+                const countsLine = lines[countsIdx] || '';
+                const numAtoms = parseInt(countsLine.substring(0, 3).trim(), 10);
+                const numBonds = parseInt(countsLine.substring(3, 6).trim(), 10);
+
+                if (!isNaN(numAtoms) && numAtoms > 0) {
+                    for (let i = 0; i < numAtoms; i++) {
+                        const line = lines[countsIdx + 1 + i];
+                        if (!line || line.startsWith('$$$$')) break;
+                        const x = parseFloat(line.substring(0, 10).trim());
+                        const y = parseFloat(line.substring(10, 20).trim());
+                        const z = parseFloat(line.substring(20, 30).trim());
+                        const el = line.substring(31, 34).trim();
+                        if (!isNaN(x) && !isNaN(y) && !isNaN(z) && el) {
+                            atoms.push({ el, pos: new THREE.Vector3(x, y, z) });
+                        }
+                    }
+                    for (let j = 0; j < numBonds; j++) {
+                        const line = lines[countsIdx + 1 + numAtoms + j];
+                        if (!line || line.startsWith('$$$$')) break;
+                        const a1 = parseInt(line.substring(0, 3).trim(), 10) - 1;
+                        const a2 = parseInt(line.substring(3, 6).trim(), 10) - 1;
+                        const order = parseInt(line.substring(6, 9).trim(), 10) || 1;
+                        if (atoms[a1] && atoms[a2]) {
+                            bonds.push({ a1, a2, order: Math.min(order, 4) });
+                        }
+                    }
+                }
+            } else if (xyzText) {
+                const lines = xyzText.trim().split(/\r?\n/).filter(l => l.trim().length > 0);
+                const startIdx = !isNaN(parseInt(lines[0].trim(), 10)) ? 2 : 0;
+                for (let i = startIdx; i < lines.length; i++) {
+                    const parts = lines[i].trim().split(/\s+/);
+                    if (parts.length >= 4) {
+                        const el = parts[0];
+                        const x = parseFloat(parts[1]);
+                        const y = parseFloat(parts[2]);
+                        const z = parseFloat(parts[3]);
+                        if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                            atoms.push({ el, pos: new THREE.Vector3(x, y, z) });
+                        }
+                    }
+                }
+                for (let i = 0; i < atoms.length; i++) {
+                    for (let j = i + 1; j < atoms.length; j++) {
+                        const d = atoms[i].pos.distanceTo(atoms[j].pos);
+                        const hasH = atoms[i].el === 'H' || atoms[j].el === 'H';
+                        const maxD = hasH ? 1.25 : 1.88;
+                        if (d > 0.35 && d <= maxD) {
+                            bonds.push({ a1: i, a2: j, order: 1 });
+                        }
+                    }
+                }
+            }
+
+            if (atoms.length === 0) {
+                throw new Error('No valid 3D atomic coordinates found in structure.');
+            }
+
+            // Center & normalize scale so molecule fits cleanly inside the viewport
+            const center = new THREE.Vector3();
+            atoms.forEach(a => center.add(a.pos));
+            center.divideScalar(atoms.length);
+            atoms.forEach(a => a.pos.sub(center));
+
+            let maxDist = 0.1;
+            atoms.forEach(a => {
+                const r = a.pos.length();
+                if (r > maxDist) maxDist = r;
+            });
+            const normScale = maxDist > 3.2 ? (3.2 / maxDist) : 1.15;
+            const atomScale = atoms.length > 45 ? 0.65 : (atoms.length > 22 ? 0.82 : 0.95);
+
+            createGroupContainer(id, `${name} (${formula})`, 0.25);
+            const uniqueElements = new Set();
+            const scaledPts = [];
+
+            atoms.forEach((a, idx) => {
+                const sp = a.pos.clone().multiplyScalar(normScale);
+                scaledPts.push(sp);
+                uniqueElements.add(a.el);
+                const showAtomTag = (atoms.length <= 32 && a.el !== 'H') ? `${a.el}${idx + 1}` : null;
+                addAtom(id, a.el, sp, showAtomTag, atomScale);
+            });
+
+            const wfEdges = [];
+            bonds.forEach(({ a1, a2, order }) => {
+                addBond(id, scaledPts[a1], scaledPts[a2], {
+                    order,
+                    radius: atoms.length > 40 ? 0.065 : 0.095
+                });
+                wfEdges.push([a1, a2, false]);
+            });
+            addWireframePolyhedron(id, scaledPts, wfEdges, [], 0x38bdf8);
+
+            const computedFormula = formula || Array.from(uniqueElements).map(el => {
+                const count = atoms.filter(a => a.el === el).length;
+                return count > 1 ? `${el}${count}` : el;
+            }).join('');
+
+            MOLECULES[id] = {
+                id,
+                category: 'fetched',
+                name,
+                formula: computedFormula,
+                shortShape: `${atoms.length} Atoms • ${bonds.length} Bonds (${sourceLabel})`,
+                roleBadge: sourceLabel,
+                badgeClass: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+                subtitle: meta.iupac || `3D Conformer Geometry (${atoms.length} Atoms, ${bonds.length} Covalent Bonds)`,
+                geometry: `${atoms.length}-Atom 3D Conformer`,
+                angles: meta.mw ? `MW: ${meta.mw} g/mol` : 'Experimental / MMFF94 3D',
+                hybrid: `${bonds.length} Covalent Bonds`,
+                lattice: meta.cid ? `PubChem CID #${meta.cid}` : 'Custom 3D Dataset',
+                elements: Array.from(uniqueElements),
+                
+
